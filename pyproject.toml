@@ -1,0 +1,11 @@
+[project]
+name = "powerbi-mcp"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "azure-identity>=1.17.0",
+    "fastmcp>=3.4.4",
+    "httpx>=0.27.0",
+]
