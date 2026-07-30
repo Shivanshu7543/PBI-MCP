@@ -135,7 +135,7 @@ Role name quick-reference:
   clusteredBarChart / barChart  → Category (column), Y (measure), Series (column)
   lineChart                     → Category (column), Y (measure), Series (column)
   pieChart / donutChart         → Category (column), Y (measure)
-  cardVisual                    → Values (measure)
+  cardVisual                    → Data (measure)
   tableEx / pivotTable          → Values (column or measure)
   slicer                        → Field (column)
   scatterChart                  → X (measure), Y (measure), Size (measure), Details (column)
@@ -173,6 +173,13 @@ Role name quick-reference:
 
 ## Step 10 — Verify
 - Tools: `list_pages`, `list_visuals`, `list_filters`, `list_dax_measures`, `list_bookmarks`
+- **Presence**: confirm all expected pages, visuals, filters, and measures exist.
+- **Bindings**: for each visual, check `fieldCount > 0` in `list_visuals` output.
+  If `fieldCount` is 0, the visual has no bound fields — re-read the MCP resource
+  for that visual type, verify the role name, and call `add_field_to_visual` again.
+- **Failure gate**: if any check fails after two fix attempts, stop and report the
+  specific failure to the user. Do not proceed to the next page until the current
+  batch passes.
 - Confirm every page has data-bound visuals before reporting completion.
 
 ---
@@ -183,15 +190,21 @@ Role name quick-reference:
 2. Read `powerbi://skills/powerbi-report-design` before any design or layout decision.
 3. Read `powerbi://skills/powerbi-report-authoring` before calling any MCP tool.
 4. Always read the relevant skill reference BEFORE calling a tool.
-5. Call `list_pages` to get the internal page_name before any visual operation.
-6. Call `list_visuals` to get visual_id before field-binding or position updates.
-7. Role names in `add_field_to_visual` must match EXACTLY what the authoring references say.
-8. `is_measure=True` for DAX measures and aggregated numeric fields (Σ).
-9. `is_measure=False` for text, date, or key columns.
-10. Every page must have data-bound visuals — scaffolding alone is not done.
-11. Never call `create_empty_report`, `add_page`, or `add_visual` for a
+5. MCP tool responses are the **source of truth** — do not infer IDs, role names,
+   field names, or schemas from memory.
+6. Call `list_pages` to get the internal page_name before any visual operation.
+7. Call `list_visuals` to get visual_id before field-binding or position updates.
+8. Role names in `add_field_to_visual` must match EXACTLY what the authoring references say.
+9. `is_measure=True` for DAX measures and aggregated numeric fields (Σ).
+10. `is_measure=False` for text, date, or key columns.
+11. Every page must have data-bound visuals — scaffolding alone is not done.
+12. Never call `create_empty_report`, `add_page`, or `add_visual` for a
     ground-up report build until the planning skill's `report-spec.md` is
     approved — there is no separate publish step, so building is live.
+13. If an MCP tool call fails, read the error, fix the input, retry. If two retries
+    fail, report the error to the user — do not continue building on a broken artifact.
+14. Semantic model changes (tables, columns, measures, relationships) are out of scope
+    for this skill — use a semantic-model authoring skill or Modeling MCP.
 """
 
 
@@ -1326,9 +1339,14 @@ async def list_visuals(
         cfg = _parse_inner(vc.get("config", "{}"))
         visual_name = cfg.get("name", "")
         visual_obj = cfg.get("singleVisual") or cfg.get("visual", {})
+        # Count bound fields via projections
+        projections = visual_obj.get("projections", {})
+        field_count = sum(len(v) for v in projections.values()
+                          ) if isinstance(projections, dict) else 0
         visuals.append({
             "id": visual_name,
             "visualType": visual_obj.get("visualType", "unknown"),
+            "fieldCount": field_count,
             "x": vc.get("x"),
             "y": vc.get("y"),
             "z": vc.get("z"),
@@ -1363,10 +1381,13 @@ async def add_visual(
     - powerbi://skills/powerbi-report-authoring/references/authoring           → canvas defaults and placeholder rules
 
     Common visual types: barChart, clusteredColumnChart, lineChart, pieChart,
-    donutChart, areaChart, scatterChart, tableEx, matrixVisual, cardVisual,
-    multiRowCard, slicer, kpi, gauge, waterfallChart, ribbonChart, treemap,
-    funnel, map, filledMap, azureMap, decompositionTree, keyInfluencers,
+    donutChart, areaChart, scatterChart, tableEx, pivotTable, cardVisual,
+    slicer, kpi, gauge, waterfallChart, ribbonChart, treemap,
+    funnel, azureMap, decompositionTree, keyInfluencers,
     qnaVisual, textbox, image, shapeMap, actionButton.
+
+    DEPRECATED — do not create: card, multiRowCard (use cardVisual),
+    table (use tableEx), matrix (use pivotTable), map/filledMap (use azureMap).
 
     Use the powerbi://visuals/list resource to see all available types.
 
@@ -2446,14 +2467,16 @@ async def list_semantic_model_columns(
         "Authorization": f"Bearer {_get_token()}",
         "Content-Type": "application/json",
     }
-    # DAX queries to try in order (simplest to most complex)
+    # DAX queries to try in order (most compatible first)
     dax_queries = [
+        "EVALUATE COLUMNSTATISTICS()",
         "EVALUATE SELECTCOLUMNS(FILTER(INFO.COLUMNS(), [IsHidden] = FALSE()), \"Table\", [TableName], \"Column\", [ExplicitName], \"DataType\", [DataType])",
         "EVALUATE SELECTCOLUMNS(INFO.COLUMNS(), \"Table\", [TableName], \"Column\", [ExplicitName], \"DataType\", [DataType])",
         "EVALUATE INFO.TABLES()",
     ]
-    # Try workspace-scoped URL first (Fabric), then global URL (classic Power BI)
+    # Try Fabric API first, then Power BI workspace-scoped, then global URL
     base_urls = [
+        f"https://api.fabric.microsoft.com/v1/workspaces/{workspace_id}/semanticModels/{semantic_model_id}/executeQueries",
         f"https://api.powerbi.com/v1.0/myorg/groups/{workspace_id}/datasets/{semantic_model_id}/executeQueries",
         f"https://api.powerbi.com/v1.0/myorg/datasets/{semantic_model_id}/executeQueries",
     ]
@@ -2479,8 +2502,10 @@ async def list_semantic_model_columns(
                     "tables", [{}])[0].get("rows", [])
                 tables: dict = {}
                 for row in rows:
-                    t = row.get("[Table]") or row.get("[Name]", "")
-                    c = row.get("[Column]", "")
+                    # Handle COLUMNSTATISTICS() keys (with spaces) and INFO.COLUMNS() keys
+                    t = row.get("[Table Name]") or row.get(
+                        "[Table]") or row.get("[Name]", "")
+                    c = row.get("[Column Name]") or row.get("[Column]", "")
                     d = row.get("[DataType]", "")
                     if t:
                         tables.setdefault(t, [])
@@ -2623,7 +2648,7 @@ async def add_field_to_visual(
     tableEx / matrixVisual:
         Values
     cardVisual:
-        Values
+        Data
     slicer:
         Field
     scatterChart:
@@ -2636,7 +2661,7 @@ async def add_field_to_visual(
         visual_id: Visual id (from list_visuals).
         table_name: Table name in the semantic model (e.g. 'Sales').
         field_name: Column or measure name (e.g. 'Category', 'Total Sales').
-        role: The visual role / field well to bind to (e.g. 'Category', 'Y', 'Values', 'Field').
+        role: The visual role / field well to bind to (e.g. 'Category', 'Y', 'Data', 'Values', 'Field').
         is_measure: True if field_name is a measure, False for a column. Default False.
 
     Returns:
