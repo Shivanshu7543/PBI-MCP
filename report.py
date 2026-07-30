@@ -82,6 +82,14 @@ signature → archetype flow and write `mode: greenfield`.
 ## Step 0 — Read skills first (mandatory every session)
 
 - Resource: `powerbi://skills/list` — index of all skill URIs
+- Resource: `powerbi://skills/powerbi-report-planning`
+  → Read **first, before any other skill**, when the user wants a full
+    "plan then build" report (new report from scratch, or "build me a
+    dashboard"/"walk me through creating a report"). Orchestrates Rounds
+    0-4 (dependencies, audience, model inventory, page plan, design
+    identity, delivery target), gates on an approved `report-spec.md`,
+    then hands off to the design and authoring skills below to execute.
+    Skip this skill for a one-off surgical edit or a pure design critique.
 - Resource: `powerbi://skills/powerbi-report-design`
   → Read **before any design decision** — tone, archetypes, chart selection,
     layout, color, typography, Design Brief contract.
@@ -92,8 +100,11 @@ signature → archetype flow and write `mode: greenfield`.
     field-role rules, formatting rules, anti-patterns, MCP build loop.
     Deep references: `powerbi://skills/powerbi-report-authoring/references/{ref}`
 
-Session flow: detect mode → design skill → Design Brief → authoring skill →
+Session flow (new report, full workflow): planning skill → locked +
+approved report-spec.md → design skill → Design Brief → authoring skill →
 MCP tools → verify.
+Session flow (small edit or design-only ask): design skill (if needed) →
+authoring skill → MCP tools → verify.
 
 ---
 
@@ -192,25 +203,30 @@ Role name quick-reference:
 - **Failure gate**: if any check fails after two fix attempts, stop and report the
   specific failure to the user. Do not proceed to the next page until the current
   batch passes.
-- Do not report completion until all checks pass.
+- Confirm every page has data-bound visuals before reporting completion.
 
 ---
 
 ## Golden rules
-1. Read `powerbi://skills/powerbi-report-design` before any design or layout decision.
-2. Read `powerbi://skills/powerbi-report-authoring` before calling any MCP tool.
-3. Always read the relevant skill reference BEFORE calling a tool.
-4. MCP tool responses are the **source of truth** — do not infer IDs, role names,
+1. For a full "plan then build" new report, read `powerbi://skills/powerbi-report-planning`
+   FIRST and follow its Round 0-4 + approval gate before touching design/authoring skills.
+2. Read `powerbi://skills/powerbi-report-design` before any design or layout decision.
+3. Read `powerbi://skills/powerbi-report-authoring` before calling any MCP tool.
+4. Always read the relevant skill reference BEFORE calling a tool.
+5. MCP tool responses are the **source of truth** — do not infer IDs, role names,
    field names, or schemas from memory.
-5. Call `list_pages` to get the internal page_name before any visual operation.
-6. Call `list_visuals` to get visual_id before field-binding or position updates.
-7. Role names in `add_field_to_visual` must match EXACTLY what the authoring references say.
-8. `is_measure=True` for DAX measures and aggregated numeric fields (Σ).
-9. `is_measure=False` for text, date, or key columns.
-10. Every page must have data-bound visuals — scaffolding alone is not done.
-11. If an MCP tool call fails, read the error, fix the input, retry. If two retries
+6. Call `list_pages` to get the internal page_name before any visual operation.
+7. Call `list_visuals` to get visual_id before field-binding or position updates.
+8. Role names in `add_field_to_visual` must match EXACTLY what the authoring references say.
+9. `is_measure=True` for DAX measures and aggregated numeric fields (Σ).
+10. `is_measure=False` for text, date, or key columns.
+11. Every page must have data-bound visuals — scaffolding alone is not done.
+12. Never call `create_empty_report`, `add_page`, or `add_visual` for a
+    ground-up report build until the planning skill's `report-spec.md` is
+    approved — there is no separate publish step, so building is live.
+13. If an MCP tool call fails, read the error, fix the input, retry. If two retries
     fail, report the error to the user — do not continue building on a broken artifact.
-12. Semantic model changes (tables, columns, measures, relationships) are out of scope
+14. Semantic model changes (tables, columns, measures, relationships) are out of scope
     for this skill — use a semantic-model authoring skill or Modeling MCP.
 """
 
@@ -516,6 +532,11 @@ async def create_empty_report(
 
     Uses PBIR-Legacy format (definition.pbir + report.json + .platform).
 
+    IMPORTANT: If this is a ground-up "build me a report/dashboard" request
+    rather than a small edit, read resource `powerbi://skills/powerbi-report-planning`
+    FIRST and get the user to approve its `report-spec.md` before calling this
+    tool — there is no separate publish step, so the report goes live immediately.
+
     IMPORTANT: Fabric's schema requires datasetReference in definition.pbir,
     so a semantic_model_id is mandatory. Use list_semantic_models to find
     available semantic model IDs in the workspace.
@@ -597,6 +618,10 @@ async def connect_report_to_semantic_model(
 
     Step 2 of 2: Updates the report's definition.pbir to point at the given
     semantic model. Use the 'id' returned by create_empty_report as report_id.
+
+    IMPORTANT: Rebinding changes the report's live data source immediately.
+    If this is the Round 4 "rebind" delivery option from `powerbi://skills/powerbi-report-planning`,
+    confirm it matches the approved report-spec.md before calling this.
 
     Calls POST https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/reports/{reportId}/updateDefinition.
     Supports long-running operations (LRO) – automatically polls until done.
@@ -991,6 +1016,10 @@ async def delete_report(
 ) -> dict:
     """Permanently delete a Power BI report from a Fabric workspace.
 
+    IMPORTANT: Destructive and not easily reversible. Per the Report Creation &
+    Update Rules in `powerbi://skills/powerbi-report-planning`, confirm with the
+    user before calling this.
+
     Calls DELETE https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/reports/{reportId}.
 
     Args:
@@ -1089,6 +1118,10 @@ async def add_page(
     display_option: int = 1,
 ) -> dict:
     """Add a new blank page (section) to an existing Power BI report.
+
+    IMPORTANT: For a ground-up report build, read `powerbi://skills/powerbi-report-planning`
+    and get the user's approval on its report-spec.md before calling this — there is
+    no separate publish step, so the page is added to the live report immediately.
 
     READ THESE RESOURCES FIRST:
     - powerbi://skills/powerbi-report-authoring/references/page-formatting  → canvas size, displayOption values, ordinal rules
@@ -1206,6 +1239,10 @@ async def delete_page(
     page_name: str,
 ) -> dict:
     """Delete a page from a Power BI report.
+
+    IMPORTANT: Destructive and not easily reversible. Per the Report Creation &
+    Update Rules in `powerbi://skills/powerbi-report-planning`, confirm with the
+    user before calling this.
 
     Note: A report must have at least one page; deleting the last page will fail.
 
@@ -1356,6 +1393,10 @@ async def add_visual(
     title: str = "",
 ) -> dict:
     """Add a new visual to a page in a Power BI report.
+
+    IMPORTANT: For a ground-up report build, read `powerbi://skills/powerbi-report-planning`
+    and get the user's approval on its report-spec.md before calling this — bind every
+    field/role the approved Design Brief specifies for this visual, not a partial set.
 
     READ THESE RESOURCES FIRST:
     - powerbi://visuals/list                                                   → all valid visual_type names
@@ -1602,6 +1643,10 @@ async def delete_visual(
     visual_id: str,
 ) -> dict:
     """Delete a visual from a report page.
+
+    IMPORTANT: Destructive and not easily reversible. Per the Report Creation &
+    Update Rules in `powerbi://skills/powerbi-report-planning`, confirm with the
+    user before calling this.
 
     Args:
         workspace_id: UUID of the Fabric workspace.
@@ -1906,6 +1951,10 @@ async def add_dax_measure(
     hidden: bool = False,
 ) -> dict:
     """Add a new report-level DAX measure to a Power BI report.
+    
+    IMPORTANT: This cannot add model-level TMDL measures, calculated columns, or
+    fix relationships. If `powerbi://skills/powerbi-report-planning` flagged a
+    model-level gap, record it for the model owner instead of claiming it as resolved.
 
     READ THESE RESOURCES FIRST:
     - powerbi://skills/powerbi-report-authoring/references/authoring    → reportExtensions.json structure
@@ -1914,6 +1963,7 @@ async def add_dax_measure(
     Report-level measures extend a table in the bound semantic model without
     modifying the model. They live in reportExtensions.json and can be
     referenced in visuals and filters just like model measures.
+
 
     Args:
         workspace_id: UUID of the Fabric workspace.
@@ -2268,6 +2318,154 @@ async def delete_bookmark(
 
 
 # ---------------------------------------------------------------------------
+# Page / Visual planning  (writes a Markdown plan doc before building)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+def create_page_or_visual_plan(
+    scope: str,
+    display_name: str,
+    purpose: str,
+    audience: str = "",
+    page_name: str = "",
+    visuals: list | None = None,
+    content_idea: str = "",
+    slicers: list | None = None,
+    notes: str = "",
+) -> dict:
+    """Write a Markdown PLANNING document for a new report page or a new visual.
+
+    PLANNING ONLY — NOT DESIGN: This tool captures *what* a page/visual is for
+    and *who* it's for — it deliberately does NOT capture *how* it should look.
+    Do not pass visual types (barChart, cardVisual, etc.) or field/role
+    bindings (table/column/measure to Category/Y/Values) here — those are
+    design decisions that belong to `powerbi://skills/powerbi-report-design`
+    (chart-selection, layout, archetypes) and are only decided afterwards,
+    immediately before calling `add_visual` / `add_field_to_visual`.
+
+    IMPORTANT: This tool only writes a planning document — it does not call
+    create_empty_report, add_page, add_visual, or bind any fields. Read
+    `powerbi://skills/powerbi-report-planning` first, then get the user's
+    approval on the generated plan. Only after approval should you move to the
+    design step (pick chart types/fields per `powerbi://skills/powerbi-report-design`)
+    and then call the authoring tools — there is no separate publish step, so
+    building goes live immediately once approved.
+
+    Saves the plan to ./_brief/plans/<scope>-<slug>.md (relative to this
+    server's working directory) and returns both the file path and content.
+
+    Args:
+        scope: 'page' to plan a whole new page (with its visuals), or
+               'visual' to plan a single new visual on an existing page.
+        display_name: Page tab name (scope='page') or visual title (scope='visual').
+        purpose: The job/decision this page or visual supports.
+        audience: Optional — who will consume this page/visual (e.g. 'Sales
+                  leadership', 'Store managers').
+        page_name: Internal page name the visual belongs to (scope='visual'),
+                   or a hint for the new page's internal name (scope='page').
+        visuals: For scope='page' — list of dicts, one per planned visual, each
+                 with keys: title, purpose, content_idea (a plain-language
+                 description of what the visual should convey, e.g. "trend of
+                 sales over time" — NOT a chart type or field binding).
+        content_idea: For scope='visual' — plain-language description of what
+                      this visual should convey (not a chart type or field
+                      binding).
+        slicers: Optional list of plain-language slicing/filtering needs for
+                 the page (e.g. 'filter by year', 'filter by region') — not
+                 specific field bindings.
+        notes: Free-form notes — risks, dependencies, open questions, etc.
+
+    Returns:
+        Dict with 'status', 'path' (file written) and 'plan' (Markdown content).
+    """
+    import uuid as _uuid
+
+    scope_normalized = scope.strip().lower()
+    if scope_normalized not in ("page", "visual"):
+        return {"error": "scope must be 'page' or 'visual'."}
+
+    visuals = visuals or []
+    slicers = slicers or []
+
+    slug_source = display_name or scope_normalized
+    slug = "-".join(slug_source.lower().split())
+    slug = "".join(c for c in slug if c.isalnum() or c == "-") or _uuid.uuid4().hex[:8]
+
+    plans_dir = Path(__file__).parent / "_brief" / "plans"
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    file_path = plans_dir / f"{scope_normalized}-{slug}.md"
+
+    lines: list[str] = []
+    if scope_normalized == "page":
+        lines.append(f"# Page Plan — {display_name}")
+        lines.append("")
+        lines.append(f"**Purpose:** {purpose}")
+        lines.append("")
+        if audience:
+            lines.append(f"**Audience:** {audience}")
+            lines.append("")
+        lines.append(f"**Internal page name:** {page_name or '(auto-generated on creation)'}")
+        lines.append("")
+        lines.append("## Planned visuals (content ideas — chart type & fields TBD at design time)")
+        lines.append("")
+        if not visuals:
+            lines.append("_No visuals specified yet._")
+        for i, v in enumerate(visuals, start=1):
+            v_title = v.get("title", f"Visual {i}")
+            v_purpose = v.get("purpose", "")
+            v_idea = v.get("content_idea", "")
+            lines.append(f"{i}. **{v_title}** — {v_purpose}")
+            if v_idea:
+                lines.append(f"   - Content idea: {v_idea}")
+        lines.append("")
+        if slicers:
+            lines.append("## Slicing / filtering needs")
+            lines.append("")
+            for s in slicers:
+                lines.append(f"- {s}")
+            lines.append("")
+    else:
+        lines.append(f"# Visual Plan — {display_name}")
+        lines.append("")
+        lines.append(f"**Target page:** {page_name or 'unspecified'}")
+        lines.append("")
+        lines.append(f"**Purpose:** {purpose}")
+        lines.append("")
+        if audience:
+            lines.append(f"**Audience:** {audience}")
+            lines.append("")
+        lines.append("## Content idea (chart type & fields TBD at design time)")
+        lines.append("")
+        lines.append(content_idea or "_No content idea specified yet._")
+        lines.append("")
+
+    if notes:
+        lines.append("## Notes")
+        lines.append("")
+        lines.append(notes)
+        lines.append("")
+
+    lines.append("## Approval")
+    lines.append("")
+    lines.append(
+        "- [ ] Approved by user. Next step is design (pick chart types and "
+        "field bindings per `powerbi://skills/powerbi-report-design`), then "
+        "call authoring tools (`add_page` / `add_visual` / `add_field_to_visual`)."
+    )
+    lines.append("")
+
+    plan_markdown = "\n".join(lines)
+    file_path.write_text(plan_markdown, encoding="utf-8")
+
+    return {
+        "status": "success",
+        "scope": scope_normalized,
+        "path": str(file_path),
+        "plan": plan_markdown,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Semantic model schema discovery
 # ---------------------------------------------------------------------------
 
@@ -2609,6 +2807,17 @@ def list_skills() -> str:
                 "and to produce a Design Brief handed off to the authoring skill."
             ),
         },
+        {
+            "name": "powerbi-report-planning",
+            "uri": "powerbi://skills/powerbi-report-planning",
+            "description": (
+                "Guided requirements-to-implementation workflow for new Power BI reports: "
+                "audience, scope, model inventory, page plan, design identity, and delivery "
+                "target, ending in an approved report-spec.md before any authoring tool is called. "
+                "Orchestrates the design and authoring skills; use this first when the user wants "
+                "a full 'plan then build' report workflow rather than a one-off edit or critique."
+            ),
+        },
     ]
     return json.dumps({"skills": skills, "count": len(skills)}, indent=2)
 
@@ -2856,6 +3065,23 @@ def skill_design_asset(asset: str) -> str:
             return path.read_text(encoding="utf-8")
     available = [p.name for p in assets_dir.iterdir() if p.is_file()]
     return json.dumps({"error": f"Asset '{asset}' not found.", "available": available}, indent=2)
+
+
+@mcp.resource("powerbi://skills/powerbi-report-planning")
+def skill_powerbi_report_planning() -> str:
+    """Power BI Report Planning Skill (SKILL.md).
+
+    Read this FIRST when the user wants a guided, end-to-end "plan then build"
+    report workflow rather than a one-off edit or design critique. Covers the
+    Round 0-4 requirements flow (dependencies, audience, model inventory,
+    page plan, design identity, delivery target), the Design Contract Gate,
+    the locked `report-spec.md` output and approval gate, and the MCP
+    tool-call sequence to execute once the spec is approved.
+    Orchestrates powerbi://skills/powerbi-report-design and
+    powerbi://skills/powerbi-report-authoring — read those before making
+    design decisions or calling any authoring tool.
+    """
+    return (_SKILLS_DIR / "powerbi-report-planning" / "SKILL.md").read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":
