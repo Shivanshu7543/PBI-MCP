@@ -40,28 +40,44 @@ This skill provides design guidance for Power BI reports. It commits a design id
 - Do not provide vague "make it modern" guidance without concrete layout/color/chart decisions.
 - Do not replace the planning workflow for broad create/build requests.
 
+## Mode Detection
+
+This skill does not infer mode by calling tools. The workflow guide in
+`report.py` decides whether a request is greenfield or brownfield before the
+design flow starts.
+
+- Brownfield means redesign, restyle, theme swap, rebrand, fixing an existing
+  report, or a named report that already exists.
+- Brownfield requests must read
+  `powerbi://skills/powerbi-report-design/references/redesign` first, capture
+  current tone/signature, then decide what is actually changing before routing
+  archetypes or chart/layout choices.
+- Greenfield means a brand-new report or a build from scratch.
+- The resulting Design Brief must set `mode: brownfield` or `mode: greenfield`
+  explicitly.
+
 ## Topic Files and Examples
 
 This root file covers the end-to-end workflow, theme, gotchas, and the design contract template. Read the topic files as needed:
 
-| MCP Resource | When to read |
-|------|-------------|
-| `powerbi://skills/powerbi-report-design/references/tone-catalog` | Read when the prompt lacks a specific tone or needs concrete downstream palette/type choices |
-| `powerbi://skills/powerbi-report-design/references/signatures` | Read when selecting or refining the report's signature visual move |
-| `powerbi://skills/powerbi-report-design/references/archetype-composition` | Read for multi-page reports when page roles or variant rotation are unclear |
-| `powerbi://skills/powerbi-report-design/references/archetypes/<name>` | **Read before** laying out each page — layout template, density, chart mix |
-| `powerbi://skills/powerbi-report-design/references/chart-selection` | **Read before** selecting a chart type — encoding hierarchy, purpose matching |
-| `powerbi://skills/powerbi-report-design/references/visual-cookbook` | **Read before** configuring any visual — sort, color, labels, CF per type |
-| `powerbi://skills/powerbi-report-design/references/layout` | **Read before** placing visuals on canvas — 8-px grid, composition templates |
-| `powerbi://skills/powerbi-report-design/references/color` | Read if defining palette, color semantics, gradients, or conditional formatting |
-| `powerbi://skills/powerbi-report-design/references/typography` | Read if overriding font sizes, type pairings, or weight conventions |
-| `powerbi://skills/powerbi-report-design/assets/base` | **Read before** theme work for generated reports — preserve its textbox/card/table per-type safeguards when adapting a custom theme |
-| `powerbi://skills/powerbi-report-design/references/interactivity` | Read if adding drill-through, bookmarks, or cross-filter rules |
-| `powerbi://skills/powerbi-report-design/references/brownfield` | Read for redesigns, restyles, theme swaps, or brand application |
-| `powerbi://skills/powerbi-report-design/references/accessibility` | **Read before** finalizing any report — WCAG checklist, alt text, contrast |
-| `powerbi://skills/powerbi-report-design/references/anti-patterns` | **Read before** finalizing any report — common failures and how to fix them |
-| `powerbi://skills/powerbi-report-design/references/pre-flight-checklist` | Read for the full checklist before handoff/final audit |
-| `powerbi://skills/powerbi-report-design/references/design-brief` | **Read before handoff** — full `Design Brief:` template, mechanical `layout_contract` schema, page title/header band, slicer placement, non-overlap rules, and validation checklist |
+| Alias | MCP Resource | When to read |
+|------|------|-------------|
+| `tone-catalog.md` | `powerbi://skills/powerbi-report-design/references/tone-catalog` | Read when the prompt lacks a specific tone or needs concrete downstream palette/type choices |
+| `signature.md` | `powerbi://skills/powerbi-report-design/references/signatures` | Read when selecting or refining the report's signature visual move |
+| `composition.md` | `powerbi://skills/powerbi-report-design/references/archetype-composition` | Read for multi-page reports when page roles or variant rotation are unclear |
+| `layout-variant/<name>.md` | `powerbi://skills/powerbi-report-design/references/archetypes/<name>` | **Read before** laying out each page — layout template, density, chart mix |
+| `chart-selection.md` | `powerbi://skills/powerbi-report-design/references/chart-selection` | **Read before** selecting a chart type — encoding hierarchy, purpose matching |
+| `visual-cookbook.md` | `powerbi://skills/powerbi-report-design/references/visual-cookbook` | **Read before** configuring any visual — sort, color, labels, CF per type |
+| `layout.md` | `powerbi://skills/powerbi-report-design/references/layout` | **Read before** placing visuals on canvas — 8-px grid, composition templates |
+| `color.md` | `powerbi://skills/powerbi-report-design/references/color` | Read if defining palette, color semantics, gradients, or conditional formatting |
+| `typography.md` | `powerbi://skills/powerbi-report-design/references/typography` | Read if overriding font sizes, type pairings, or weight conventions |
+| `archetype-composition.md` | `powerbi://skills/powerbi-report-design/assets/base` | **Read before** theme work for generated reports — preserve its textbox/card/table per-type safeguards when adapting a custom theme |
+| `interactivity.md` | `powerbi://skills/powerbi-report-design/references/interactivity` | Read if adding drill-through, bookmarks, or cross-filter rules |
+| `brownfield.md` | `powerbi://skills/powerbi-report-design/references/brownfield` | Read for redesigns, restyles, theme swaps, or brand application |
+| `accessibility.md` | `powerbi://skills/powerbi-report-design/references/accessibility` | **Read before** finalizing any report — WCAG checklist, alt text, contrast |
+| `anti-patterns.md` | `powerbi://skills/powerbi-report-design/references/anti-patterns` | **Read before** finalizing any report — common failures and how to fix them |
+| `pre-flight-checklist.md` | `powerbi://skills/powerbi-report-design/references/pre-flight-checklist` | Read for the full checklist before handoff/final audit |
+| `design-brief.md` | `powerbi://skills/powerbi-report-design/references/design-brief` | **Read before handoff** — full `Design Brief:` template, mechanical `layout_contract` schema, page title/header band, slicer placement, non-overlap rules, and validation checklist |
 
 ## Workflow
 

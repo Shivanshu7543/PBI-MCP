@@ -43,6 +43,17 @@ def _get_token() -> str:
 
 mcp = FastMCP("PowerBI Reports")
 
+_DESIGN_SENSITIVE_TOOL_DESCRIPTION = (
+    """
+    Design-sensitive MCP tool: before any create/edit report, page,
+    or visual action, read `powerbi://skills/powerbi-report-design` 
+    and `powerbi://skills/powerbi-report-authoring` 
+    plus their full reference trees (`powerbi://skills/powerbi-report-design/references/{ref}` 
+    and `powerbi://skills/powerbi-report-authoring/references/{ref}`) 
+    and apply the existing design fabric.
+    """
+)
+
 
 # ---------------------------------------------------------------------------
 # MCP Prompt — workflow guide loaded by the LLM client at session start
@@ -59,6 +70,12 @@ def powerbi_workflow_guide() -> str:
 
 Every session follows this order: **skills → resources → tools**.
 Read the skill and the relevant skill reference BEFORE calling any tool.
+If the request is brownfield — redesign, restyle, theme swap, rebrand, fix an
+existing report, or a named report that already exists — follow the brownfield
+path first, read `powerbi://skills/powerbi-report-design/references/redesign`,
+and write `mode: brownfield` in the Design Brief. If the request is
+greenfield — a brand-new report or build from scratch — follow the full tone →
+signature → archetype flow and write `mode: greenfield`.
 
 ---
 
@@ -75,7 +92,8 @@ Read the skill and the relevant skill reference BEFORE calling any tool.
     field-role rules, formatting rules, anti-patterns, MCP build loop.
     Deep references: `powerbi://skills/powerbi-report-authoring/references/{ref}`
 
-Session flow: design skill → Design Brief → authoring skill → MCP tools → verify.
+Session flow: detect mode → design skill → Design Brief → authoring skill →
+MCP tools → verify.
 
 ---
 
@@ -83,6 +101,12 @@ Session flow: design skill → Design Brief → authoring skill → MCP tools �
 - Tool: `list_semantic_models(workspace_id)` → get semantic_model_id
 - Tool: `list_reports(workspace_id)` → inspect existing reports
 - Tool: `list_semantic_model_columns(workspace_id, semantic_model_id)` → enumerate tables, columns, measures
+- Greenfield path: commit to tone → signatures → archetype routing before page
+  design. Default to the full design identity flow for new reports.
+- Brownfield path: read
+  `powerbi://skills/powerbi-report-design/references/redesign` first, capture
+  current tone/signature, and decide what is actually changing before touching
+  archetype, chart-selection, or layout decisions.
 - Resource: `powerbi://skills/powerbi-report-authoring/references/authoring` (connection string format)
 
 ---
@@ -410,8 +434,8 @@ def _build_definition(display_name: str, semantic_model_id: str) -> dict:
                 "visualContainers": [],
                 "config": json.dumps({}),
                 "displayOption": 1,
-                "height": 720.0,
-                "width": 1280.0,
+                "height": 1080.0,
+                "width": 1920.0,
             }
         ],
     }
@@ -478,7 +502,7 @@ async def _poll_lro(client: httpx.AsyncClient, operation_url: str, retry_after: 
 # MCP tool
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def create_empty_report(
     workspace_id: str,
     display_name: str,
@@ -563,7 +587,7 @@ async def create_empty_report(
         return {"error": f"Request failed with status {response.status_code}", "details": error_body}
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def connect_report_to_semantic_model(
     workspace_id: str,
     report_id: str,
@@ -912,7 +936,7 @@ async def get_report(
         return {"error": f"Request failed with status {resp.status_code}", "details": err}
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def update_report_metadata(
     workspace_id: str,
     report_id: str,
@@ -1054,14 +1078,14 @@ async def list_pages(
     return {"pages": pages, "count": len(pages)}
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def add_page(
     workspace_id: str,
     report_id: str,
     display_name: str,
     page_name: str = "",
-    width: float = 1280.0,
-    height: float = 720.0,
+    width: float = 1920.0,
+    height: float = 1080.0,
     display_option: int = 1,
 ) -> dict:
     """Add a new blank page (section) to an existing Power BI report.
@@ -1074,8 +1098,8 @@ async def add_page(
         report_id: UUID of the report.
         display_name: User-facing page tab name.
         page_name: Internal page identifier (auto-generated if omitted).
-        width: Canvas width in pixels. Default 1280.
-        height: Canvas height in pixels. Default 720.
+        width: Canvas width in pixels. Default 1920.
+        height: Canvas height in pixels. Default 1080.
         display_option: Page scaling — 1=FitToPage, 2=FitToWidth, 3=ActualSize.
 
     Returns:
@@ -1123,7 +1147,7 @@ async def add_page(
         return result
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def update_page(
     workspace_id: str,
     report_id: str,
@@ -1175,7 +1199,7 @@ async def update_page(
         return await _push_definition(client, workspace_id, report_id, decoded, headers)
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def delete_page(
     workspace_id: str,
     report_id: str,
@@ -1220,7 +1244,7 @@ async def delete_page(
         return await _push_definition(client, workspace_id, report_id, decoded, headers)
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def reorder_pages(
     workspace_id: str,
     report_id: str,
@@ -1318,7 +1342,7 @@ async def list_visuals(
     return {"visuals": visuals, "count": len(visuals)}
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def add_visual(
     workspace_id: str,
     report_id: str,
@@ -1427,7 +1451,7 @@ async def add_visual(
         return result
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def update_visual_position(
     workspace_id: str,
     report_id: str,
@@ -1514,7 +1538,7 @@ async def update_visual_position(
         return await _push_definition(client, workspace_id, report_id, decoded, headers)
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def update_visual_title(
     workspace_id: str,
     report_id: str,
@@ -1570,7 +1594,7 @@ async def update_visual_title(
         return {"error": f"Visual '{visual_id}' not found on page '{page_name}'."}
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def delete_visual(
     workspace_id: str,
     report_id: str,
@@ -2328,7 +2352,7 @@ async def list_semantic_model_columns(
 # Visual field binding
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def remove_field_from_visual(
     workspace_id: str,
     report_id: str,
@@ -2420,7 +2444,7 @@ async def remove_field_from_visual(
         return result
 
 
-@mcp.tool()
+@mcp.tool(description=_DESIGN_SENSITIVE_TOOL_DESCRIPTION)
 async def add_field_to_visual(
     workspace_id: str,
     report_id: str,
@@ -2647,17 +2671,153 @@ def skill_design_reference(ref: str) -> str:
 
     Args:
         ref: Reference name without extension. Available values:
-             accessibility, anti-patterns, archetype-composition, brownfield,
-             chart-selection, color, design-brief, interactivity, layout,
-             pre-flight-checklist, signatures, tone-catalog, typography, visual-cookbook.
+             accessibility, anti-patterns, archetype-composition, base,
+             brownfield, chart-selection, color, composition, design-brief,
+             drillthrough-bookmarks, fonts, gotchas, interactivity, layout,
+             layout-variant/<name>, palette, pre-flight-checklist, redesign,
+             signature, signatures, tone, tone-catalog, typography, visual-config,
+             visual-cookbook, wcag.
     """
     path = _SKILLS_DIR / "powerbi-report-design" / "references" / f"{ref}.md"
     if not path.exists():
+        refs_dir = _SKILLS_DIR / "powerbi-report-design" / "references"
         available = sorted(
-            p.stem for p in (_SKILLS_DIR / "powerbi-report-design" / "references").glob("*.md")
+            p.relative_to(refs_dir).with_suffix("").as_posix()
+            for p in refs_dir.glob("**/*.md")
         )
         return json.dumps({"error": f"Reference '{ref}' not found.", "available": available}, indent=2)
     return path.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Design skill — alias resources (guessable names)
+# ---------------------------------------------------------------------------
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/tone")
+def kb_tone_catalog() -> str:
+    """Tone catalog — alias for powerbi://skills/powerbi-report-design/references/tone-catalog."""
+    return (_DESIGN_REFS / "tone-catalog.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/signature")
+def kb_signatures() -> str:
+    """Signature — alias for powerbi://skills/powerbi-report-design/references/signatures."""
+    return (_DESIGN_REFS / "signatures.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/composition")
+def kb_archetype_composition() -> str:
+    """Composition — alias for powerbi://skills/powerbi-report-design/references/archetype-composition."""
+    return (_DESIGN_REFS / "archetype-composition.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/layout-variant/executive-summary")
+def kb_layout_variant_executive_summary() -> str:
+    """Executive Summary layout variant — alias for powerbi://skills/powerbi-report-design/references/archetypes/executive-summary."""
+    return (_DESIGN_REFS / "archetypes" / "executive-summary.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/layout-variant/operational-monitor")
+def kb_layout_variant_operational_monitor() -> str:
+    """Operational Monitor layout variant — alias for powerbi://skills/powerbi-report-design/references/archetypes/operational-monitor."""
+    return (_DESIGN_REFS / "archetypes" / "operational-monitor.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/layout-variant/analytical-canvas")
+def kb_layout_variant_analytical_canvas() -> str:
+    """Analytical Canvas layout variant — alias for powerbi://skills/powerbi-report-design/references/archetypes/analytical-canvas."""
+    return (_DESIGN_REFS / "archetypes" / "analytical-canvas.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/layout-variant/narrative-story")
+def kb_layout_variant_narrative_story() -> str:
+    """Narrative Story layout variant — alias for powerbi://skills/powerbi-report-design/references/archetypes/narrative-story."""
+    return (_DESIGN_REFS / "archetypes" / "narrative-story.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/layout-variant/comparative-benchmark")
+def kb_layout_variant_comparative_benchmark() -> str:
+    """Comparative Benchmark layout variant — alias for powerbi://skills/powerbi-report-design/references/archetypes/comparative-benchmark."""
+    return (_DESIGN_REFS / "archetypes" / "comparative-benchmark.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/chart-types")
+def kb_chart_selection() -> str:
+    """Chart types — alias for powerbi://skills/powerbi-report-design/references/chart-selection."""
+    return (_DESIGN_REFS / "chart-selection.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/visual-config")
+def kb_visual_cookbook() -> str:
+    """Visual config — alias for powerbi://skills/powerbi-report-design/references/visual-cookbook."""
+    return (_DESIGN_REFS / "visual-cookbook.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/canvas-layout")
+def kb_layout() -> str:
+    """Canvas layout — alias for powerbi://skills/powerbi-report-design/references/layout."""
+    return (_DESIGN_REFS / "layout.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/palette")
+def kb_color() -> str:
+    """Palette — alias for powerbi://skills/powerbi-report-design/references/color."""
+    return (_DESIGN_REFS / "color.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/fonts")
+def kb_typography() -> str:
+    """Fonts — alias for powerbi://skills/powerbi-report-design/references/typography."""
+    return (_DESIGN_REFS / "typography.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/base")
+def kb_base_theme() -> str:
+    """Base theme — alias for powerbi://skills/powerbi-report-design/assets/base."""
+    return (_SKILLS_DIR / "powerbi-report-design" / "assets" / "base.json").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/theme")
+def kb_theme() -> str:
+    """Theme — alias for powerbi://skills/powerbi-report-design/assets/base."""
+    return (_SKILLS_DIR / "powerbi-report-design" / "assets" / "base.json").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/drillthrough-bookmarks")
+def kb_interactivity() -> str:
+    """Drillthrough bookmarks — alias for powerbi://skills/powerbi-report-design/references/interactivity."""
+    return (_DESIGN_REFS / "interactivity.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/redesign")
+def kb_brownfield() -> str:
+    """Redesign — alias for powerbi://skills/powerbi-report-design/references/brownfield."""
+    return (_DESIGN_REFS / "brownfield.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/wcag")
+def kb_accessibility() -> str:
+    """WCAG — alias for powerbi://skills/powerbi-report-design/references/accessibility."""
+    return (_DESIGN_REFS / "accessibility.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/gotchas")
+def kb_anti_patterns() -> str:
+    """Gotchas — alias for powerbi://skills/powerbi-report-design/references/anti-patterns."""
+    return (_DESIGN_REFS / "anti-patterns.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/checklist")
+def kb_pre_flight_checklist() -> str:
+    """Checklist — alias for powerbi://skills/powerbi-report-design/references/pre-flight-checklist."""
+    return (_DESIGN_REFS / "pre-flight-checklist.md").read_text(encoding="utf-8")
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/brief")
+def kb_design_brief() -> str:
+    """Brief — alias for powerbi://skills/powerbi-report-design/references/design-brief."""
+    return (_DESIGN_REFS / "design-brief.md").read_text(encoding="utf-8")
 
 
 @mcp.resource("powerbi://skills/powerbi-report-design/references/archetypes/{archetype}")
