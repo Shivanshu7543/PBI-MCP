@@ -31,7 +31,8 @@ This skill provides design guidance for Power BI reports. It commits a design id
 ### PREFER
 
 - Ask only for missing design inputs that materially affect the outcome.
-- Use reference files on demand instead of loading the full design catalog.
+- Read `powerbi://skills/powerbi-report-design/references/all` first so the complete
+  design tree is available before choosing any layout, color, or chart direction.
 - Emit a structured `Design Brief:` when the design will be implemented.
 
 ### AVOID
@@ -59,6 +60,9 @@ design flow starts.
 ## Topic Files and Examples
 
 This root file covers the end-to-end workflow, theme, gotchas, and the design contract template. Read the topic files as needed:
+
+Before narrowing to specific topics, read `powerbi://skills/powerbi-report-design/references/all`
+so the complete design resource tree is loaded for the session.
 
 | Alias | MCP Resource | When to read |
 |------|------|-------------|

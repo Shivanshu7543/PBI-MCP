@@ -46,11 +46,22 @@ mcp = FastMCP("PowerBI Reports")
 _DESIGN_SENSITIVE_TOOL_DESCRIPTION = (
     """
     Design-sensitive MCP tool: before any create/edit report, page,
-    or visual action, read `powerbi://skills/powerbi-report-design` 
-    and `powerbi://skills/powerbi-report-authoring` 
-    plus their full reference trees (`powerbi://skills/powerbi-report-design/references/{ref}` 
-    and `powerbi://skills/powerbi-report-authoring/references/{ref}`) 
-    and apply the existing design fabric.
+    or visual action, read the design skill first:
+    - `powerbi://skills/powerbi-report-design`
+    - `powerbi://skills/powerbi-report-design/references`
+    - `powerbi://skills/powerbi-report-design/references/brief`
+    - `powerbi://skills/powerbi-report-design/references/redesign` for brownfield work
+    - `powerbi://skills/powerbi-report-design/references/tone-catalog`
+    - `powerbi://skills/powerbi-report-design/references/signatures`
+    - `powerbi://skills/powerbi-report-design/references/archetypes/{archetype}`
+    - `powerbi://skills/powerbi-report-design/references/chart-selection`
+    - `powerbi://skills/powerbi-report-design/references/visual-cookbook`
+    - `powerbi://skills/powerbi-report-design/references/layout`
+    - `powerbi://skills/powerbi-report-design/references/color`
+    - `powerbi://skills/powerbi-report-design/references/typography`
+    Then read the authoring skill and its relevant references before writing
+    any PBIR change. The report design brief should drive layout, theme, and
+    chart choices; authoring should only implement that brief.
     """
 )
 
@@ -95,10 +106,14 @@ signature → archetype flow and write `mode: greenfield`.
     layout, color, typography, Design Brief contract.
     Deep references: `powerbi://skills/powerbi-report-design/references/{ref}`
     Archetypes: `powerbi://skills/powerbi-report-design/references/archetypes/{archetype}`
+    Reference index: `powerbi://skills/powerbi-report-design/references`
+    Full bundle: `powerbi://skills/powerbi-report-design/references/all`
+    Design brief: `powerbi://skills/powerbi-report-design/references/brief`
 - Resource: `powerbi://skills/powerbi-report-authoring`
   → Read **before calling any MCP tool** — available tools, visual types,
     field-role rules, formatting rules, anti-patterns, MCP build loop.
     Deep references: `powerbi://skills/powerbi-report-authoring/references/{ref}`
+    Reference index: `powerbi://skills/powerbi-report-authoring/references`
 
 Session flow (new report, full workflow): planning skill → locked +
 approved report-spec.md → design skill → Design Brief → authoring skill →
@@ -240,6 +255,38 @@ Role name quick-reference:
 _SKILLS_DIR = Path(__file__).parent / "skills"
 _AUTHORING_REFS = _SKILLS_DIR / "powerbi-report-authoring" / "references"
 _DESIGN_REFS = _SKILLS_DIR / "powerbi-report-design" / "references"
+
+
+def _read_reference(root: Path, ref: str) -> str:
+    """Return a markdown or JSON reference file from a skill reference tree."""
+    candidates = [
+        root / ref,
+        root / f"{ref}.md",
+        root / f"{ref}.json",
+        root / ref / "index.md",
+        root / ref / "index.json",
+    ]
+    for path in candidates:
+        if path.exists() and path.is_file():
+            return path.read_text(encoding="utf-8")
+    raise FileNotFoundError(ref)
+
+
+def _list_reference_paths(root: Path) -> list[str]:
+    """Return all reference files in a skill tree as stable, slash-delimited paths."""
+    paths: list[str] = []
+    for path in root.rglob("*"):
+        if path.is_file() and path.suffix in {".md", ".json"}:
+            paths.append(path.relative_to(root).with_suffix("").as_posix())
+    return sorted(paths)
+
+
+def _read_reference_bundle(root: Path) -> dict:
+    """Return every reference file under a skill tree with its full content."""
+    bundle = {}
+    for rel_path in _list_reference_paths(root):
+        bundle[rel_path] = _read_reference(root, rel_path)
+    return bundle
 
 
 @mcp.resource("powerbi://skills/powerbi-report-authoring/references/visuals")
@@ -2803,8 +2850,10 @@ def list_skills() -> str:
             "uri": "powerbi://skills/powerbi-report-design",
             "description": (
                 "Visual design guidance before calling any MCP tool. "
-                "Read this to choose tone, archetypes, chart types, layout, color, typography, "
-                "and to produce a Design Brief handed off to the authoring skill."
+                "Read this first, then read powerbi://skills/powerbi-report-design/references "
+                "and powerbi://skills/powerbi-report-design/references/all to load the complete "
+                "design tree before choosing tone, archetypes, chart types, layout, color, "
+                "typography, and to produce a Design Brief handed off to the authoring skill."
             ),
         },
         {
@@ -2820,6 +2869,52 @@ def list_skills() -> str:
         },
     ]
     return json.dumps({"skills": skills, "count": len(skills)}, indent=2)
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references")
+def design_reference_index() -> str:
+    """Index of design references for discovery and bootstrap reads."""
+    refs = _list_reference_paths(_DESIGN_REFS)
+    return json.dumps(
+        {
+            "skill": "powerbi-report-design",
+            "references": refs,
+            "recommended_reads": [
+                "powerbi://skills/powerbi-report-design",
+                "references/all",
+                "brief",
+                "tone-catalog",
+                "signatures",
+                "archetypes/executive-summary",
+                "archetypes/analytical-canvas",
+                "chart-selection",
+                "visual-cookbook",
+                "layout",
+                "color",
+                "typography",
+            ],
+        },
+        indent=2,
+    )
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/index")
+def design_reference_index_alias() -> str:
+    """Alias for the design reference index."""
+    return design_reference_index()
+
+
+@mcp.resource("powerbi://skills/powerbi-report-design/references/all")
+def design_reference_bundle() -> str:
+    """Complete design reference bundle with every design reference file."""
+    return json.dumps(
+        {
+            "skill": "powerbi-report-design",
+            "references": _list_reference_paths(_DESIGN_REFS),
+            "bundle": _read_reference_bundle(_DESIGN_REFS),
+        },
+        indent=2,
+    )
 
 
 @mcp.resource("powerbi://skills/powerbi-report-authoring")
@@ -2850,14 +2945,13 @@ def skill_authoring_reference(ref: str) -> str:
              formatting, formatting-overview, image, map, page-formatting,
              re-theming, shape, slicers, table, textbox, theming, version-control.
     """
-    path = _SKILLS_DIR / "powerbi-report-authoring" / \
-        "references" / f"{ref}.md"
-    if not path.exists():
+    try:
+        return _read_reference(_AUTHORING_REFS, ref)
+    except FileNotFoundError:
         available = sorted(
             p.stem for p in (_SKILLS_DIR / "powerbi-report-authoring" / "references").glob("*.md")
         )
         return json.dumps({"error": f"Reference '{ref}' not found.", "available": available}, indent=2)
-    return path.read_text(encoding="utf-8")
 
 
 @mcp.resource("powerbi://skills/powerbi-report-design")
@@ -2887,15 +2981,15 @@ def skill_design_reference(ref: str) -> str:
              signature, signatures, tone, tone-catalog, typography, visual-config,
              visual-cookbook, wcag.
     """
-    path = _SKILLS_DIR / "powerbi-report-design" / "references" / f"{ref}.md"
-    if not path.exists():
+    try:
+        return _read_reference(_DESIGN_REFS, ref)
+    except FileNotFoundError:
         refs_dir = _SKILLS_DIR / "powerbi-report-design" / "references"
         available = sorted(
             p.relative_to(refs_dir).with_suffix("").as_posix()
             for p in refs_dir.glob("**/*.md")
         )
         return json.dumps({"error": f"Reference '{ref}' not found.", "available": available}, indent=2)
-    return path.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
