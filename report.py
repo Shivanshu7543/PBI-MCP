@@ -45,23 +45,36 @@ mcp = FastMCP("PowerBI Reports")
 
 _DESIGN_SENSITIVE_TOOL_DESCRIPTION = (
     """
-    Design-sensitive MCP tool: before any create/edit report, page,
-    or visual action, read the design skill first:
-    - `powerbi://skills/powerbi-report-design`
-    - `powerbi://skills/powerbi-report-design/references`
-    - `powerbi://skills/powerbi-report-design/references/brief`
-    - `powerbi://skills/powerbi-report-design/references/redesign` for brownfield work
-    - `powerbi://skills/powerbi-report-design/references/tone-catalog`
-    - `powerbi://skills/powerbi-report-design/references/signatures`
-    - `powerbi://skills/powerbi-report-design/references/archetypes/{archetype}`
-    - `powerbi://skills/powerbi-report-design/references/chart-selection`
-    - `powerbi://skills/powerbi-report-design/references/visual-cookbook`
-    - `powerbi://skills/powerbi-report-design/references/layout`
-    - `powerbi://skills/powerbi-report-design/references/color`
-    - `powerbi://skills/powerbi-report-design/references/typography`
-    Then read the authoring skill and its relevant references before writing
-    any PBIR change. The report design brief should drive layout, theme, and
-    chart choices; authoring should only implement that brief.
+    STOP — Do NOT call this tool directly for new reports.
+
+    Required workflow order (enforced):
+    1. PLANNING (new reports): Read `powerbi://skills/powerbi-report-planning`
+       first. Complete Rounds 0-4, save plan to `/memories/session/report-spec.md`
+       (session memory), and get user approval BEFORE any tool call.
+    2. DESIGN (always before authoring): Read the plan from
+       `/memories/session/report-spec.md`, then read design skill references.
+       Optimize chart types, layout, positions, colors based on design skills.
+       Update `/memories/session/report-spec.md` in place with design decisions
+       and the `Design Brief:` YAML block.
+       Key design references:
+       - `powerbi://skills/powerbi-report-design/references/brief`
+       - `powerbi://skills/powerbi-report-design/references/tone-catalog`
+       - `powerbi://skills/powerbi-report-design/references/signatures`
+       - `powerbi://skills/powerbi-report-design/references/archetypes/{archetype}`
+       - `powerbi://skills/powerbi-report-design/references/chart-selection`
+       - `powerbi://skills/powerbi-report-design/references/visual-cookbook`
+       - `powerbi://skills/powerbi-report-design/references/layout`
+       - `powerbi://skills/powerbi-report-design/references/color`
+       - `powerbi://skills/powerbi-report-design/references/typography`
+       - `powerbi://skills/powerbi-report-design/references/redesign` (brownfield)
+    3. AUTHORING (implementation): Read `/memories/session/report-spec.md`
+       (now containing plan + design brief), then call MCP tools to implement
+       exactly what the spec says. Authoring only implements — no design choices.
+
+    The spec file in `/memories/session/report-spec.md` is the SINGLE source
+    of truth. Planning creates it → Design updates it → Authoring reads it.
+    Skip step 1 only for small edits to an existing report.
+    Never skip step 2 — every visual/page action requires a Design Brief.
     """
 )
 
@@ -78,6 +91,27 @@ def powerbi_workflow_guide() -> str:
     """
     return """
 # Power BI MCP — Workflow Guide
+
+## MANDATORY EXECUTION ORDER (never skip)
+
+For NEW reports: **Planning → Design → Authoring → Tools → Verify**
+For edits/redesign: **Design → Authoring → Tools → Verify**
+
+You MUST complete each phase before proceeding to the next.
+The spec file `/memories/session/report-spec.md` flows through every phase:
+
+1. **Planning** → creates `/memories/session/report-spec.md` with page plan,
+   visuals, fields, audience, purpose. Gets user approval.
+2. **Design** → reads `/memories/session/report-spec.md`, reads design skill
+   references, optimizes chart types/layout/colors, then UPDATES the same
+   memory file with concrete design decisions + `Design Brief:` YAML.
+3. **Authoring** → reads `/memories/session/report-spec.md` (plan + design)
+   and implements it via MCP tools. No design choices — only implementation.
+
+Do NOT call `create_empty_report`, `add_page`, or `add_visual` until steps 1-2
+are complete. There is no shortcut.
+
+---
 
 Every session follows this order: **skills → resources → tools**.
 Read the skill and the relevant skill reference BEFORE calling any tool.
@@ -1998,7 +2032,7 @@ async def add_dax_measure(
     hidden: bool = False,
 ) -> dict:
     """Add a new report-level DAX measure to a Power BI report.
-    
+
     IMPORTANT: This cannot add model-level TMDL measures, calculated columns, or
     fix relationships. If `powerbi://skills/powerbi-report-planning` flagged a
     model-level gap, record it for the model owner instead of claiming it as resolved.
@@ -2436,7 +2470,8 @@ def create_page_or_visual_plan(
 
     slug_source = display_name or scope_normalized
     slug = "-".join(slug_source.lower().split())
-    slug = "".join(c for c in slug if c.isalnum() or c == "-") or _uuid.uuid4().hex[:8]
+    slug = "".join(c for c in slug if c.isalnum()
+                   or c == "-") or _uuid.uuid4().hex[:8]
 
     plans_dir = Path(__file__).parent / "_brief" / "plans"
     plans_dir.mkdir(parents=True, exist_ok=True)
@@ -2451,9 +2486,11 @@ def create_page_or_visual_plan(
         if audience:
             lines.append(f"**Audience:** {audience}")
             lines.append("")
-        lines.append(f"**Internal page name:** {page_name or '(auto-generated on creation)'}")
+        lines.append(
+            f"**Internal page name:** {page_name or '(auto-generated on creation)'}")
         lines.append("")
-        lines.append("## Planned visuals (content ideas — chart type & fields TBD at design time)")
+        lines.append(
+            "## Planned visuals (content ideas — chart type & fields TBD at design time)")
         lines.append("")
         if not visuals:
             lines.append("_No visuals specified yet._")
@@ -2481,7 +2518,8 @@ def create_page_or_visual_plan(
         if audience:
             lines.append(f"**Audience:** {audience}")
             lines.append("")
-        lines.append("## Content idea (chart type & fields TBD at design time)")
+        lines.append(
+            "## Content idea (chart type & fields TBD at design time)")
         lines.append("")
         lines.append(content_idea or "_No content idea specified yet._")
         lines.append("")

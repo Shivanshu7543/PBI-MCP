@@ -85,9 +85,30 @@ so the complete design resource tree is loaded for the session.
 
 ## Workflow
 
-### Step 0 — Data-First Investigation
+### Step 0 — Read the Plan from Memory
 
-Inspect the semantic model before making any design decision. Use the Semantic Model MCP server if available, or read `.tmdl` files directly. Sample top-N rows per table to understand distributions, cardinality, and magnitudes. Catalog tables, columns, measures, hierarchies, and relationships. Map each measure+dimension to the analytical question it answers.
+Before making any design decision, read the plan file from session memory at
+`/memories/session/report-spec.md` (created by the planning skill). This file
+contains the page plan, visual content ideas, field mappings, audience, and
+purpose. Use these as input constraints — the design skill optimizes HOW the
+plan is presented (chart types, layout, positions, colors, typography) but does
+not change WHAT the plan says to show (audience, scope, fields, page count).
+
+After reading the plan, inspect the semantic model to understand distributions,
+cardinality, and magnitudes. Catalog tables, columns, measures, hierarchies,
+and relationships. Map each measure+dimension to the analytical question it
+answers.
+
+After completing all design steps (Steps 1-6), update
+`/memories/session/report-spec.md` in place with the concrete design decisions:
+- Replace generic visual descriptions with specific chart types and layout
+  positions.
+- Add the `Design Brief:` YAML block under a "Canonical design contract"
+  section.
+- Update field role bindings (e.g., "bar chart showing sales" becomes
+  `barChart: Category=Product[Category], Y=Sales[Sales]`).
+
+The updated file becomes the single source of truth for the authoring phase.
 
 ### Step 1 — Design Identity
 
@@ -150,7 +171,7 @@ Emit a structured `Design Brief:` YAML block. This is the contract with
 0-5 and include a mechanical `layout_contract` per page.
 
 When this skill is used inside the planner workflow, embed this YAML block in
-`_brief/report-spec.md` under a "Canonical design contract" section. For the
+`/memories/session/report-spec.md` under a "Canonical design contract" section. For the
 full template, field rationale, brownfield current/target fields,
 minimal-brief escape hatch, page-level mechanical schema, examples, and
 validation checklist, read `powerbi://skills/powerbi-report-design/references/design-brief`.

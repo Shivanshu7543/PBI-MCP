@@ -10,7 +10,7 @@ For brownfield mode, also walk
 
 ## Identity (Step 1)
 
-- [ ] **Single source of truth** — if writing files, `_brief/report-spec.md`
+- [ ] **Single source of truth** — `/memories/session/report-spec.md`
       contains the user-readable report spec and exactly one fenced `yaml`
       block beginning with `Design Brief:`.
 - [ ] **Markdown/YAML alignment** — every page, core visual, design identity,

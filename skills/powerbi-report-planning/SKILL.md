@@ -45,7 +45,7 @@ others as needed instead of duplicating their guidance here:
 
 - Use this skill for broad report creation workflows that need requirements, dependency checks, approval, and build sequencing.
 - Ask focused clarification questions one at a time and stop after the required decision is clear.
-- Lock `_brief/report-spec.md` and get approval before calling any authoring tool.
+- Lock `/memories/session/report-spec.md` and get approval before calling any authoring tool.
 - Route design decisions through the `powerbi://skills/powerbi-report-design` resource and file/tool mechanics through the `powerbi://skills/powerbi-report-authoring` resource.
 
 ### PREFER
@@ -95,7 +95,7 @@ during Rounds 3–4 — it does not replace it.
    contains every needed measure/column — this server can only add
    report-level DAX measures via `add_dax_measure`; it cannot create or edit
    model-level TMDL measures, calculated columns, or relationships.
-5. **Produce one locked `_brief/report-spec.md` before building.**
+5. **Produce one locked `/memories/session/report-spec.md` before building.**
 6. **Ask for approval before implementation.** Do not call any authoring tool
    (`create_empty_report`, `add_page`, `add_visual`, etc.) until the user
    explicitly approves.
@@ -355,7 +355,7 @@ applied automatically unless the user overrides):
 
 ## Design Contract Gate
 
-Before producing `_brief/report-spec.md` for approval, get a canonical
+Before producing `/memories/session/report-spec.md` for approval, get a canonical
 `Design Brief:` YAML block from `powerbi-report-design`. The planner may provide
 requirements, model inventory, page goals, and user constraints to the design
 skill, but the planner must not author a competing detailed design skeleton.
@@ -381,28 +381,37 @@ asking for approval or invoking `powerbi-report-authoring`.
 
 ## Locked Report Spec Output
 
-After Rounds 0-4, produce one file and save it under `./_brief/` in the
-current working directory:
+After Rounds 0-4, save the report spec to **session memory** at
+`/memories/session/report-spec.md` using the memory tool with `create` command.
+This is the single source of truth for the entire pipeline:
 
-- `./_brief/report-spec.md` — the single source of truth for approval and
-  implementation handoff.
+- Planning writes it.
+- Design reads it, optimizes visuals/layout/charts, and updates it in place
+  (using `str_replace` on the memory file).
+- Authoring reads the final version and implements it.
 
 `report-spec.md` has two layers:
 
-1. **Markdown sections** for user approval and readable context.
-2. A fenced `yaml` block containing the exact `Design Brief:` returned by
+1. **Markdown sections** for user approval and readable context (page plan,
+   visuals, fields, audience, purpose).
+2. A fenced `yaml` block containing the exact `Design Brief:` produced by
    `powerbi-report-design` — the canonical implementation contract that
-   `powerbi-report-authoring` consumes.
+   `powerbi-report-authoring` consumes. This block is added by the design
+   phase, not the planning phase.
 
-If Markdown prose and the embedded YAML disagree, fix `report-spec.md` before
+**Handoff chain:**
+- Planning creates `/memories/session/report-spec.md` with the page plan,
+  visual content ideas, field mappings, and audience/purpose sections.
+- Design reads `/memories/session/report-spec.md`, applies design skill
+  optimizations (chart types, layout positions, archetype routing, color,
+  typography), and updates the file in memory with concrete design decisions
+  and the `Design Brief:` YAML block.
+- Authoring reads `/memories/session/report-spec.md` (now containing both
+  the plan AND the design brief) and implements it via MCP tools.
+
+If Markdown prose and the embedded YAML disagree, fix the memory file before
 building. Do not ask the authoring agent to choose between conflicting
 instructions.
-
-If the agent runtime exposes a dedicated session/scratch folder (for example a
-`session-state` path injected by the harness), you may also write a copy there
-for user visibility, but the canonical implementation handoff file remains
-`./_brief/report-spec.md` unless every later authoring step carries the alternate
-absolute path explicitly.
 
 ### `report-spec.md` template
 
@@ -520,8 +529,8 @@ When the user approves, execute this sequence using this server's MCP tools
 (read `powerbi://skills/powerbi-report-authoring` first for exact role names,
 visual types, and formatting properties):
 
-1. Re-read the approved canonical report spec (normally `_brief/report-spec.md`,
-   or the explicitly carried alternate absolute path) and extract the embedded
+1. Re-read the approved canonical report spec from `/memories/session/report-spec.md`
+   and extract the embedded
    `Design Brief:` YAML block. Verify it has `generated_by:
    powerbi-report-design`, `contract_version`, one populated `layout_contract`
    per page, and `space_audit` per page before authoring. For greenfield, verify

@@ -35,7 +35,7 @@ definition files in the **PBIR (Power BI Report)** format used by **PBIP
 
 ### PREFER
 
-- Start from an approved `Design Brief:` or `_brief/report-spec.md` for greenfield report builds.
+- Start from an approved `Design Brief:` in `/memories/session/report-spec.md` for greenfield report builds.
 - Route visual-design uncertainty to `powerbi-report-design` before writing files.
 - Use `list_semantic_model_columns` to discover available tables and fields instead of guessing column or measure names.
 - For semantic model changes (adding tables, columns, measures, relationships), use a semantic-model authoring skill or Power BI Modeling MCP — not this skill. This skill is for **report-level** artifacts only.
@@ -48,7 +48,7 @@ definition files in the **PBIR (Power BI Report)** format used by **PBIP
 ## Quick Start Workflow
 
 0. **Design routing** → for greenfield builds, read `powerbi://skills/powerbi-report-design`
-   first; use the `Design Brief:` YAML block from `_brief/report-spec.md` (or an
+   first; use the `Design Brief:` YAML block from `/memories/session/report-spec.md` (or an
    approved inline `Design Brief:` block in the conversation) as the implementation spec.
 1. **Discover workspace** → call `list_semantic_models(workspace_id)` to find
    the semantic model ID, and `list_reports(workspace_id)` for existing reports.

@@ -7,7 +7,7 @@ build: page intent, design identity, semantic bindings, and a mechanical
 computes **how**: exact coordinates, PBIR JSON, theme registration, validation,
 Desktop reloads, and screenshots.
 
-In the planner workflow, embed this YAML block inside `_brief/report-spec.md`
+In the planner workflow, embed this YAML block inside `/memories/session/report-spec.md`
 under a "Canonical design contract" section. The surrounding Markdown is for
 user approval and context; the embedded YAML is authoritative for
 implementation.
