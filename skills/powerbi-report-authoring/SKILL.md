@@ -30,12 +30,15 @@ definition files in the **PBIR (Power BI Report)** format used by **PBIP
 - Read `powerbi://skills/powerbi-report-authoring/references/{ref}` before specifying visual roles, formatting objects, enum values, or field expressions.
 - Always call `list_semantic_models` and `list_semantic_model_columns` before creating a report or binding fields.
 - Start from an approved `Design Brief:` from `powerbi://skills/powerbi-report-design` for greenfield builds.
+- Verify every MCP tool call by calling the corresponding list tool (`list_pages`, `list_visuals`, `list_filters`, `list_dax_measures`) and confirming the artifact exists with the expected properties. If a tool call returns an error, read the error message, fix the input, and retry. If two retries fail, report the error to the user.
+- MCP tool responses and MCP resources are the **source of truth** — do not infer IDs, role names, field names, or schemas from memory.
 
 ### PREFER
 
 - Start from an approved `Design Brief:` or `_brief/report-spec.md` for greenfield report builds.
 - Route visual-design uncertainty to `powerbi-report-design` before writing files.
 - Use `list_semantic_model_columns` to discover available tables and fields instead of guessing column or measure names.
+- For semantic model changes (adding tables, columns, measures, relationships), use a semantic-model authoring skill or Power BI Modeling MCP — not this skill. This skill is for **report-level** artifacts only.
 
 ### AVOID
 
@@ -45,7 +48,8 @@ definition files in the **PBIR (Power BI Report)** format used by **PBIP
 ## Quick Start Workflow
 
 0. **Design routing** → for greenfield builds, read `powerbi://skills/powerbi-report-design`
-   first; use its `Design Brief:` output as the implementation spec.
+   first; use the `Design Brief:` YAML block from `_brief/report-spec.md` (or an
+   approved inline `Design Brief:` block in the conversation) as the implementation spec.
 1. **Discover workspace** → call `list_semantic_models(workspace_id)` to find
    the semantic model ID, and `list_reports(workspace_id)` for existing reports.
 2. **Understand the model** → call `list_semantic_model_columns(workspace_id, semantic_model_id)`
@@ -59,8 +63,12 @@ definition files in the **PBIR (Power BI Report)** format used by **PBIP
    `add_visual`, `add_field_to_visual`, `add_categorical_filter`,
    `add_dax_measure`, and `add_bookmark` to build the report step by step.
    Verify each page has data-bound visuals before moving on.
-6. **Report back** → give the user a concise summary of what was built and any
-   issues encountered.
+6. **Verify** → after every logical batch, call `list_pages`, `list_visuals`,
+   `list_filters`, and `list_dax_measures` to confirm artifacts exist and have
+   correct bindings. If a visual shows 0 fields, re-read the MCP resource and
+   retry `add_field_to_visual` with the correct role name. See [Verification](#verification).
+7. **Report back** → give the user a concise summary of what was built and any
+   issues encountered (major and minor).
 
 ## MCP Resources
 
@@ -112,21 +120,26 @@ When delegation is useful, split by page or visual family. Give each sub-task th
 
 ## MCP Tools Available
 
-Use these MCP tools to build reports via the Fabric REST API:
+Use these MCP tools to build reports via the Fabric REST API. MCP tool
+responses are the **source of truth** for IDs, names, and current report state —
+do not cache or infer these values from memory across calls.
 
 | Tool | Purpose |
 |------|---------|
 | `create_empty_report` | Create a new blank report bound to a semantic model |
 | `list_reports` / `get_report` | List or inspect existing reports |
+| `update_report_metadata` | Update report display name and/or description |
+| `delete_report` | Permanently delete a report from a workspace |
+| `get_report_definition` | Fetch and decode the full PBIR-Legacy definition (all parts) |
 | `add_page` / `update_page` / `delete_page` | Manage report pages |
 | `list_pages` / `reorder_pages` | Audit and reorder pages |
-| `add_visual` | Add a visual to a page (sets type, position, title) |
-| `list_visuals` | List all visuals on a page with their IDs |
+| `add_visual` / `delete_visual` | Add or remove a visual on a page |
+| `list_visuals` | List all visuals on a page with their IDs and field count |
 | `update_visual_title` / `update_visual_position` | Update visual display and layout |
-| `add_field_to_visual` | Bind a column or measure to a visual role |
-| `add_categorical_filter` | Add a categorical filter at report, page, or visual level |
-| `add_dax_measure` / `update_dax_measure` | Add or update report-level DAX measures |
-| `add_bookmark` / `delete_bookmark` | Manage bookmarks |
+| `add_field_to_visual` / `remove_field_from_visual` | Bind or unbind a column/measure to a visual role |
+| `list_filters` / `add_categorical_filter` / `remove_filter` | List, add, or remove filters at report or page level |
+| `list_dax_measures` / `add_dax_measure` / `update_dax_measure` / `delete_dax_measure` | List, add, update, or delete report-level DAX measures |
+| `list_bookmarks` / `add_bookmark` / `delete_bookmark` | List, add, or delete bookmarks |
 | `list_semantic_models` | Discover semantic model IDs in a workspace |
 | `list_semantic_model_columns` | Enumerate tables, columns, and measures |
 | `connect_report_to_semantic_model` | Rebind a report to a different semantic model |
@@ -232,7 +245,8 @@ Follow this loop when building or modifying a report via MCP tools:
 │  2. Discover IDs   → list_pages / list_visuals          │
 │  3. Call MCP tool  → add_visual / add_field_to_visual   │
 │  4. Verify result  → list_visuals to confirm the change │
-│  5. Report back    → summarise what was built           │
+│  5. Handle errors  → fix input and retry (max 2)        │
+│  6. Report back    → summarise what was built           │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -243,15 +257,40 @@ Follow this loop when building or modifying a report via MCP tools:
 - Set `is_measure=True` for DAX measures and aggregated numeric fields; `is_measure=False` for text, date, or key columns.
 - Page scaffolding is not completion — every requested page needs data-bound visuals.
 
+**Error handling:**
+
+| MCP tool error / symptom | Likely cause | Action |
+|---|---|---|
+| Tool returns HTTP 400 / validation error | Invalid parameter (wrong ID, bad role name, unsupported visual type) | Read the error message, re-read the relevant MCP resource, fix the input, retry once |
+| Tool returns HTTP 404 | Workspace, report, page, or visual ID does not exist | Re-run the corresponding `list_*` tool to get the current ID, retry |
+| Tool returns HTTP 401 / 403 | Authentication expired or insufficient permissions | Ask the user to verify credentials and workspace access |
+| Tool returns HTTP 429 | Rate limit exceeded | Wait briefly, then retry once. If it persists, report to the user |
+| Tool succeeds but `list_visuals` shows visual with 0 fields | Wrong role name or `is_measure` flag | Re-read MCP resource for the visual type, verify the exact role name and field type, call `add_field_to_visual` again |
+| Tool succeeds but visual does not appear in `list_visuals` | Wrong page name or stale page ID | Re-call `list_pages` to get current page names, retry `add_visual` on the correct page |
+| Two retries fail for the same operation | Persistent API or configuration issue | Stop, report the exact error to the user, do not continue building on a broken artifact |
+
 
 ## Verification
 
-After building or modifying report artifacts via MCP tools, verify the result:
+After building or modifying report artifacts via MCP tools, verify the result.
+Do not report completion until all checks pass.
 
-- Call `list_pages` to confirm all expected pages exist.
-- Call `list_visuals` on each page to confirm visuals are present with correct IDs.
-- Call `list_filters` and `list_dax_measures` to confirm filters and measures are registered.
-- If a visual appears empty, check that `add_field_to_visual` used the exact role name from the MCP resource.
+### Presence checks
+- Call `list_pages` — confirm all expected pages exist and `pageOrder` is correct.
+- Call `list_visuals` on each page — confirm every requested visual is present.
+- Call `list_filters` — confirm filters are registered at the correct scope (report / page / visual).
+- Call `list_dax_measures` — confirm all created measures appear.
+- Call `list_bookmarks` — confirm bookmarks if any were created.
+
+### Binding and correctness checks
+- For each visual, verify the field count returned by `list_visuals` is > 0. A visual with 0 fields means `add_field_to_visual` either was not called or used a wrong role name.
+- If a visual shows 0 fields: re-read the MCP resource for that visual type, verify the exact role name (e.g., `"Data"` not `"Fields"` for `cardVisual`), and call `add_field_to_visual` again.
+- Confirm `is_measure` was set correctly: `True` for DAX measures and aggregated numeric fields, `False` for text, date, or key columns. Incorrect `is_measure` produces silent binding failures.
+- For filters, verify the filter values match what was requested — `list_filters` returns the current filter state.
+
+### Failure gate
+- If any check fails after two fix attempts, stop and report the specific failure to the user.
+- Do not proceed to the next page or visual group until the current batch passes verification.
 
 
 ---
