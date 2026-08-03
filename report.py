@@ -579,6 +579,44 @@ async def connect_report_to_semantic_model(
         return {"error": f"Request failed with status {response.status_code}", "details": error_body}
 
 
+
+@mcp.tool()
+async def list_workspaces() -> dict:
+    """List all Power BI workspaces user have access
+
+    Calls GET https://api.fabric.microsoft.com/v1/workspaces.
+
+    Args: 
+
+    Returns:
+        List of workspaces with id, name.
+    """
+    url = f"https://api.fabric.microsoft.com/v1/workspaces"
+    headers = {"Authorization": f"Bearer {_get_token()}"}
+
+    results = []
+    async with httpx.AsyncClient(timeout=30) as client:
+        while url:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 429:
+                return {"error": "Rate limit exceeded", "retry_after_seconds": resp.headers.get("Retry-After", "unknown")}
+            if resp.status_code != 200:
+                try:
+                    err = resp.json()
+                except Exception:
+                    err = resp.text
+                return {"error": f"Request failed with status {resp.status_code}", "details": err}
+            body = resp.json()
+            for r in body.get("value", []):
+                results.append({
+                    "id": r.get("id"),
+                    "displayName": r.get("displayName")
+                })
+            url = body.get("continuationUri")
+    return {"reports": results, "count": len(results)}
+
+
+
 @mcp.tool()
 async def list_semantic_models(
     workspace_id: str,
@@ -2476,4 +2514,4 @@ async def add_field_to_visual(
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
+    mcp.run(transport="streamable-http", host="0.0.0.0", port=9000)
